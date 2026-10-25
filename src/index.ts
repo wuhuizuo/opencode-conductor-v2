@@ -1,129 +1,98 @@
-import type { Plugin } from "@opencode-ai/plugin";
-import * as fs from "fs";
-import * as path from "path";
-import ImplementPrompt from "./prompts/conductor/implement.json" with { type: "json" };
-import NewTrackPrompt from "./prompts/conductor/newTrack.json" with { type: "json" };
-import RevertPrompt from "./prompts/conductor/revert.json" with { type: "json" };
-import ReviewPrompt from "./prompts/conductor/review.json" with { type: "json" };
-import SetupPrompt from "./prompts/conductor/setup.json" with { type: "json" };
-import StatusPrompt from "./prompts/conductor/status.json" with { type: "json" };
+import { Plugin } from "@opencode/plugin";
+import { composeCommandText } from "./plugin/commandText.js";
+import { buildProjectContext } from "./plugin/context.js";
+import { COMMAND_IDS, COMMAND_NAMES, COMMAND_TEMPLATES, type CommandId } from "./plugin/prompts.js";
+import { migrationNotice, provisionConductorAgent } from "./plugin/provisioning.js";
+import {
+  hasSubagentAgent,
+  loadStrategyText,
+  parseDelegationMode,
+  resolveStrategy,
+  type DelegationMode,
+} from "./plugin/strategies.js";
 
-export const MyPlugin: Plugin = async ({
-  project,
-  client,
-  $,
-  directory,
-  worktree,
-}) => {
-  // List all files and folders which are in conductor subfolder (.json and .md files only)
-  const conductorPath = path.join(directory, "conductor");
-  let files: string[] = [];
-  let fileHeirarchy = "";
-  let llmFiles = "";
+/** Shape of the invocation the OpenCode v2 command runtime hands to `execute`. */
+interface CommandInvocation {
+  readonly sessionID: string;
+  readonly prompt: { readonly text: string } & Record<string, unknown>;
+  readonly delivery: "steer" | "queue" | null | undefined;
+}
 
-  const getFilesRecursively = (dir: string): string[] => {
-    let results: string[] = [];
-    if (!fs.existsSync(dir)) return results;
-    const list = fs.readdirSync(dir);
-    list.forEach((file) => {
-      const filePath = path.join(dir, file);
-      const stat = fs.statSync(filePath);
-      if (stat && stat.isDirectory()) {
-        results = results.concat(getFilesRecursively(filePath));
-      } else {
-        if (filePath.endsWith(".json") || filePath.endsWith(".md")) {
-          results.push(filePath);
-        }
+interface AgentDomainLike {
+  list(): Promise<unknown>;
+}
+
+/**
+ * Conductor plugin for OpenCode v2.
+ *
+ * Registers the six `/conductor:*` commands and provisions the `@conductor`
+ * agent into the global OpenCode v2 agents directory.
+ */
+export default Plugin.define({
+  id: "conductor",
+
+  async setup(ctx) {
+    const options = (ctx.options ?? {}) as Record<string, unknown>;
+    const delegation: DelegationMode = parseDelegationMode(options.delegation);
+
+    if (options.provisionAgent !== false) {
+      provisionAgent(typeof options.home === "string" ? options.home : undefined);
+    }
+
+    const listAgents = async (): Promise<unknown> => {
+      try {
+        return await (ctx.agent as unknown as AgentDomainLike).list();
+      } catch {
+        return [];
+      }
+    };
+
+    const executeCommand = async (id: CommandId, invocation: CommandInvocation): Promise<void> => {
+      const context = buildProjectContext(ctx.location.directory);
+      const strategySection =
+        id === "implement"
+          ? loadStrategyText(resolveStrategy(delegation, hasSubagentAgent(await listAgents())))
+          : undefined;
+
+      const text = composeCommandText({
+        template: COMMAND_TEMPLATES[id].prompt,
+        context,
+        strategySection,
+        userArguments: invocation.prompt?.text,
+      });
+
+      await ctx.session.prompt({
+        ...invocation.prompt,
+        sessionID: invocation.sessionID,
+        text,
+        delivery: invocation.delivery,
+      });
+    };
+
+    const registration = await ctx.command.transform((editor) => {
+      for (const id of COMMAND_IDS) {
+        editor.add({
+          name: COMMAND_NAMES[id],
+          description: COMMAND_TEMPLATES[id].description,
+          execute: (invocation) => executeCommand(id, invocation as unknown as CommandInvocation),
+        });
       }
     });
-    return results;
-  };
 
-  if (fs.existsSync(conductorPath)) {
-    files = getFilesRecursively(conductorPath);
-    fileHeirarchy = files
-      .map((f) => path.relative(directory, f))
-      .join("\n                    ");
-    
-    // Concat them nicely for the LLM using <> tags
-    llmFiles = files
-      .map((f) => {
-        const content = fs.readFileSync(f, "utf-8");
-        const relPath = path.relative(directory, f);
-        return `<${f} path="${relPath}">\n${content}\n</${f}>`;
-      })
-      .join("\n\n");
+    return async () => {
+      await registration.dispose();
+    };
+  },
+});
+
+/** Install/refresh the conductor agent; provisioning failures must not break command registration. */
+function provisionAgent(home?: string): void {
+  try {
+    const result = provisionConductorAgent(home ? { home } : {});
+    if (result.legacyArtifacts.length > 0) {
+      console.warn(migrationNotice(result.legacyArtifacts));
+    }
+  } catch (error) {
+    console.warn(`[conductor] agent provisioning skipped: ${String(error)}`);
   }
-
-  const isConductorSetup = () => {
-    const setupStatePath = path.join(conductorPath, "setup_state.json");
-    return fs.existsSync(setupStatePath);
-  };
-
-  // @note read setup json file and write a utility function which will determine if setup has occured within the project yet
-  const setupOccurred = isConductorSetup();
-
-  return {
-    config: async (_config) => {
-      _config.command = {
-        ..._config.command,
-        "conductor:implement": {
-          template: ImplementPrompt.prompt + `
-            Environment Details: 
-              - Directory: ${directory}
-              - Conductor Setup: ${setupOccurred}
-              - Current Conductor Files (Location: ${directory}/conductor)
-                  File Tree:
-                    ${fileHeirarchy}
-          `,
-          description: ImplementPrompt.description,
-        },
-        "conductor:newTrack": {
-          template: NewTrackPrompt.prompt,
-          description: NewTrackPrompt.description,
-        },
-        "conductor:revert": {
-          template: RevertPrompt.prompt,
-          description: RevertPrompt.description,
-        },
-        "conductor:review": {
-          template: ReviewPrompt.prompt + `
-            Environment Details: 
-              - Directory: ${directory}
-              - Conductor Setup: ${setupOccurred}
-              - Current Conductor Files (Location: ${directory}/conductor)
-                  File Tree:
-                    ${fileHeirarchy}
-          `,
-          description: ReviewPrompt.description,
-        },
-        "conductor:setup": {
-          template: SetupPrompt.prompt + `
-            Environment Details: 
-              - Directory: ${directory}
-              - Conductor Setup: ${setupOccurred}
-              - Current Conductor Files (with tracks) (${directory}/conductor)
-                File Tree:
-                  ${fileHeirarchy}
-
-              **CRITICAL ENVIRONMENTAL OVERRIDE:** You are an OpenCode plugin. Use .opencodeignore or .gitignore for analysis. .gemini files are not used in this environment.
-          `,
-          description: SetupPrompt.description,
-        },
-        "conductor:status": {
-          template: StatusPrompt.prompt + `
-
-          
-          ***Current Environment Details***: 
-            - Current Working Directory: ${directory}
-            - Conductor Setup Process Completed: ${setupOccurred}
-            - Current Conductor Files (with tracks) (${directory}/conductor)
-                File Tree:
-                  ${fileHeirarchy}
-        `,
-          description: StatusPrompt.description,
-        },
-      };
-    },
-  };
-};
+}

@@ -1,54 +1,64 @@
 {
-  "name": "opencode-conductor-plugin",
-  "version": "1.32.0",
-  "description": "Conductor plugin for OpenCode",
+  "name": "@wuhuizuo/opencode-conductor-plugin",
+  "version": "2.0.0",
+  "description": "Conductor plugin for OpenCode v2",
   "type": "module",
-  "repository": "derekbar90/opencode-conductor",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wuhuizuo/opencode-conductor-v2.git"
+  },
   "keywords": [
     "opencode",
     "plugin",
     "conductor",
-    "agent",
-    "sisyphus"
+    "agent"
   ],
   "author": "Derek Barrera",
+  "contributors": [
+    "wuhuizuo"
+  ],
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/derekbar90/opencode-conductor/issues"
+    "url": "https://github.com/wuhuizuo/opencode-conductor-v2/issues"
   },
-  "homepage": "https://github.com/derekbar90/opencode-conductor#readme",
+  "homepage": "https://github.com/wuhuizuo/opencode-conductor-v2#readme",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "files": [
     "dist",
-    "scripts",
-    "legacy"
+    "scripts/postinstall.cjs"
   ],
+  "peerDependencies": {
+    "@opencode/plugin": "^2.1.4"
+  },
+  "peerDependenciesMeta": {
+    "@opencode/plugin": {
+      "optional": true
+    }
+  },
   "scripts": {
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "rm -rf dist && tsc && npm run copy-assets",
+    "copy-assets": "mkdir -p dist/prompts && cp -r src/prompts/* dist/prompts/",
+    "probe": "node scripts/integration-probe.mjs",
     "postinstall": "node scripts/postinstall.cjs",
-    "build": "rm -rf dist && npm run convert-legacy && tsc && npm run copy-assets",
-    "convert-legacy": "node scripts/convert-legacy.cjs",
-    "copy-assets": "mkdir -p dist/templates && cp -r src/templates/* dist/templates/ && mkdir -p dist/prompts && cp -r src/prompts/* dist/prompts/",
     "prepublishOnly": "npm run build"
   },
-  "dependencies": {
-    "@opencode-ai/plugin": "1.0.223",
-    "smol-toml": "^1.6.0"
-  },
   "devDependencies": {
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/commit-analyzer": "^13.0.0",
-    "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^11.0.1",
-    "@semantic-release/npm": "^12.0.1",
-    "@semantic-release/release-notes-generator": "^14.0.0",
+    "@opencode/plugin": "2.1.4",
     "@types/node": "^20.0.0",
-    "semantic-release": "^24.2.1",
     "typescript": "^5.0.0",
     "vitest": "^4.0.16"
   },
@@ -56,7 +66,7 @@
     "branches": [
       "main"
     ],
-    "repositoryUrl": "https://github.com/derekbar90/opencode-conductor",
+    "repositoryUrl": "https://github.com/wuhuizuo/opencode-conductor-v2",
     "plugins": [
       "@semantic-release/commit-analyzer",
       "@semantic-release/release-notes-generator",

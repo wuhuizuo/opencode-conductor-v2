@@ -1,50 +1,56 @@
 # Installation Guide
 
-Follow these steps to install the Conductor plugin into your OpenCode environment.
+Install the Conductor plugin for **OpenCode v2** (v2.1.4+).
+
+> The legacy `opencode-conductor-plugin` package targets OpenCode v1 and does not load under v2.
+> Use `@wuhuizuo/opencode-conductor-plugin` instead.
+
+---
 
 ## 🚀 Simple Installation (Recommended)
 
-Add the plugin to your global `opencode.json` file. OpenCode will automatically fetch and install it from NPM.
+```bash
+opencode plugin add @wuhuizuo/opencode-conductor-plugin
+```
+
+`opencode plugin add` installs the package and writes it to the **global** OpenCode configuration
+(`~/.config/opencode/opencode.json`).
+
+### Or edit the config manually
 
 **File:** `~/.config/opencode/opencode.json`
 
 ```json
 {
-  "plugin": [
-    "opencode-conductor-plugin"
-  ]
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["@wuhuizuo/opencode-conductor-plugin"]
 }
 ```
 
-### ⚡ First-Run Setup (Auto-Bootstrapping)
-The Conductor plugin features a built-in bootstrap utility. The first time you start OpenCode with the plugin loaded:
-1.  It will automatically install the `@conductor` agent definition to `~/.config/opencode/agent/`.
-2.  It will install the `c-` slash commands to `~/.config/opencode/command/`.
-3.  You will see an OpenCode notification once this is finished.
+### ⚡ First-Run Provisioning
 
-**IMPORTANT:** You must **restart OpenCode** after this first run to enable the slash commands in the TUI.
+The first time the plugin loads (and on every `npm install`), it installs the `conductor` agent definition to:
+
+```
+~/.config/opencode/agents/conductor.md
+```
+
+- The install is idempotent and refreshes a stale definition after upgrades.
+- It never writes to the legacy `~/.config/opencode/agent/` or `~/.config/opencode/command/` directories.
+- If legacy v1 conductor files are detected, the plugin logs a one-line migration notice (files are not deleted).
+
+**Restart OpenCode** after the first load so the `conductor` agent and the six slash commands are available.
 
 ---
 
 ## ⚙️ Configuration
 
 ### Agent Model
-By default, the `@conductor` agent uses your session's default model. We **highly recommend** pinning it to a "flash" model for optimal performance and cost-efficiency during the planning phases.
 
-#### Standard OpenCode Config
+By default the `conductor` agent uses your session's default model. Pinning a fast model is recommended for planning phases.
+
 **File:** `~/.config/opencode/opencode.json`
-```json
-{
-  "agent": {
-    "conductor": {
-      "model": "google/gemini-3-flash"
-    }
-  }
-}
-```
 
-#### OhMyOpenCode Config
-**File:** `~/.config/opencode/oh-my-opencode.json`
 ```json
 {
   "agents": {
@@ -55,71 +61,81 @@ By default, the `@conductor` agent uses your session's default model. We **highl
 }
 ```
 
+### Delegation Strategy
+
+```json
+{
+  "plugins": [
+    {
+      "package": "@wuhuizuo/opencode-conductor-plugin",
+      "options": { "delegation": "auto" }
+    }
+  ]
+}
+```
+
+| Value | Behaviour |
+| :--- | :--- |
+| `manual` | Implement every task in the current session (default). |
+| `delegate` | Dispatch tasks through OpenCode v2's built-in `subagent` tool. |
+| `auto` | Delegate when a subagent-capable agent is available, otherwise manual. |
+
+---
+
+## 🧹 Migrating From v1
+
+1. Remove the v1 plugin entry (`"plugin": ["opencode-conductor-plugin"]`) and add the v2 entry under `plugins` (see above).
+2. Delete the legacy installed artifacts so they cannot shadow the new agent:
+   ```bash
+   rm -f ~/.config/opencode/agent/conductor.md
+   rm -f ~/.config/opencode/command/conductor*
+   ```
+3. Restart OpenCode.
+
+**Rollback:** reinstall `opencode-conductor-plugin@1.32.0` and run OpenCode v1.
+
 ---
 
 ## 🏗️ Development & Manual Install
 
-If you want to install from source or contribute to the plugin development:
-
-### 1. Build from Source
 ```bash
-# Clone and enter the repo
-git clone https://github.com/derekbar90/opencode-conductor.git
-cd opencode-conductor
-
-# Install dependencies and build
+git clone git@github.com:wuhuizuo/opencode-conductor-v2.git
+cd opencode-conductor-v2
 npm install
 npm run build
 ```
 
-### 2. Local Linking (Real-time Development)
-To see your changes reflected immediately without reinstalling:
-```bash
-# Inside the opencode-conductor repo
-npm link
+Point OpenCode at the local build through a local plugin directory:
 
-# Inside your global opencode config directory
-cd ~/.config/opencode
-npm link opencode-conductor-plugin
-```
-Then, update your `~/.config/opencode/opencode.json` to include `"opencode-conductor-plugin"`.
-
-### 3. Manual Scaffolding (Fallback)
-If the auto-bootstrapping script fails or you prefer manual control, you can copy the definitions yourself from the `dist` folder:
-
-```bash
-# Create target directories
-mkdir -p ~/.config/opencode/agent
-mkdir -p ~/.config/opencode/command
-
-# Copy Agent definition
-cp dist/prompts/agent/conductor.md ~/.config/opencode/agent/
-
-# Copy Slash Commands
-cp dist/prompts/commands/*.md ~/.config/opencode/command/
+```json
+{
+  "plugins": ["/absolute/path/to/opencode-conductor-v2/.opencode/plugins/conductor"]
+}
 ```
 
-### 4. Verification
-Check the terminal output where you started OpenCode. You should see:
-`[Conductor] Plugin tools loaded.`
+where `.opencode/plugins/conductor/index.ts` re-exports the built entrypoint:
 
-If you see errors, ensure that your `node_modules` are up to date by running `npm install` again.
+```ts
+export { default } from "../../../dist/index.js";
+```
+
+Run the automated equivalent with `npm run probe`.
 
 ---
 
-## 🛠️ Commands Available
+## ✅ Verifying the Installation
 
-Once installed and restarted, type `/` in the OpenCode TUI to access:
-*   **/c-setup**: Initialize project context (Product, Tech Stack, Workflow).
-*   **/c-new**: Create a new feature or bug track (e.g., `/c-new "login page"`).
-*   **/c-implement**: Begin autonomous implementation of the next task.
-*   **/c-status**: View high-level project progress.
-*   **/c-revert**: Smart undo of specific tracks, phases, or tasks.
+```bash
+opencode plugin list        # the package should be listed
+```
 
----
+Inside a session, all six commands are available:
 
-## 📈 Contributing (Versioning)
-This project uses **Conventional Commits**. To trigger an automated release, use the following prefixes in your commit messages:
-- `feat:` for new features (Minor version bump)
-- `fix:` for bug fixes (Patch version bump)
-- `chore:`, `docs:`, `style:`, `refactor:`, `test:` (No version bump)
+- `/conductor:setup`
+- `/conductor:newTrack`
+- `/conductor:implement`
+- `/conductor:review`
+- `/conductor:status`
+- `/conductor:revert`
+
+If commands do not appear, restart OpenCode and check the log for plugin load errors.

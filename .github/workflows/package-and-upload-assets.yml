@@ -23,12 +23,28 @@ jobs:
       # 1. Checks out your repository's code
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      # 2. Create TAR archive
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install, test and build
+        run: |
+          npm install
+          npm run typecheck
+          npm test
+          npm run build
+
+      # 2. Create TAR archive of the built package (dist + install script)
       - name: Create TAR archive
-        run: tar -czvf ../conductor-release.tar.gz --exclude='.git' --exclude='.github' . && mv ../conductor-release.tar.gz .
+        run: |
+          tar -czvf ../conductor-v2-release.tar.gz \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            dist scripts/postinstall.cjs package.json README.md INSTALL.md LICENSE CHANGELOG.md
+          mv ../conductor-v2-release.tar.gz .
 
       # 3. Upload the TAR archive as a release asset
       - name: Upload archive to GitHub Release
@@ -37,4 +53,4 @@ jobs:
         run: |
           gh release upload \
             ${{ github.event.release.tag_name || inputs.tag_name }} \
-            conductor-release.tar.gz
+            conductor-v2-release.tar.gz

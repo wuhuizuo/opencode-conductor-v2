@@ -1,83 +1,61 @@
-# Conductor Plugin for OpenCode
+# Conductor Plugin for OpenCode v2
 
 > **Measure twice, code once.**
 
-Conductor is a specialized OpenCode plugin designed to enforce a rigorous, **Context-Driven Development** lifecycle. It transforms OpenCode from a reactive coding tool into a proactive project architect that follows a strict protocol to specify, plan, and implement software features and bug fixes.
+Conductor is an [OpenCode](https://opencode.ai) plugin that enforces a rigorous, **Context-Driven Development** lifecycle. It turns OpenCode from a reactive coding tool into a proactive project architect that specifies, plans, and implements software features and bug fixes against persistent project context.
 
-The philosophy is simple: **control your code by controlling your context.** By treating project requirements and plans as managed artifacts, Conductor ensures every agent interaction is grounded in deep, persistent project awareness.
+> **Fork note**
+> This repository ports [`derekbar90/opencode-conductor`](https://github.com/derekbar90/opencode-conductor) to the **OpenCode v2 plugin API**.
+> The upstream package (`opencode-conductor-plugin`) targets OpenCode v1 and does not load under v2.
+> This fork publishes `@wuhuizuo/opencode-conductor-plugin` and requires **OpenCode v2.1.4+**.
 
 ---
 
 ## 🚀 Key Features
 
-*   **Specialized `@conductor` Agent**: A dedicated subagent that acts as your Project Architect and Technical Lead.
-*   **Native Slash Commands**: Integrated shortcuts like `/conductor:setup`, `/conductor:newTrack`, and `/conductor:implement` for frictionless project management.
-*   **Modern Permissions**: Fully compatible with OpenCode v1.1.1 granular permission system.
-*   **Protocol-Driven Workflow**: Automated enforcement of the **Context -> Spec -> Plan -> Implement** lifecycle.
-*   **Smart Revert**: A Git-aware revert system that understands logical units of work (Tracks, Phases, Tasks) instead of just raw commit hashes.
-*   **19+ Style Templates**: Built-in support for a vast range of languages including Rust, Solidity, Zig, Julia, Kotlin, Swift, and more.
-*   **Zero-Config Bootstrap**: Automatically installs agents and commands to your global OpenCode configuration on first run.
-*   **Sisyphus Synergy**: Optimized to work alongside [OhMyOpenCode](https://github.com/code-yeongyu/oh-my-opencode) for a multi-agent team experience.
-*   **Agent Agnostic**: Commands can be invoked by any agent, giving you the freedom to choose your primary interface.
-
----
-
-## 🛠️ The Conductor Lifecycle
-
-Conductor organizes your work into **Tracks** (features or bug fixes). Every Track follows three mandatory phases:
-
-### 1. Project Initialization (`/conductor:setup`)
-Run this once per project. The agent will interview you to define:
-*   **Product Vision**: Target users, core goals, and primary features.
-*   **Tech Stack**: Languages, frameworks, and databases.
-*   **Workflow Rules**: Testing standards (e.g., TDD), commit strategies, and documentation patterns.
-
-### 2. Track Planning (`/conductor:newTrack`)
-When you're ready for a new task, tell the agent what you want to build.
-*   **Specification (`spec.md`)**: Conductor asks 3-5 targeted questions to clarify the "What" and "Why".
-*   **Implementation Plan (`plan.md`)**: Once the spec is approved, Conductor generates a step-by-step checklist adhering to your project's workflow rules.
-
-### 3. Autonomous Implementation (`/conductor:implement`)
-The agent works through the `plan.md` checklist, executing tasks, running tests, and making semantic commits automatically until the Track is complete.
+- **Native v2 plugin**: one plugin entrypoint that registers everything through OpenCode v2's command transform.
+- **Six slash commands**: `/conductor:setup`, `/conductor:newTrack`, `/conductor:implement`, `/conductor:review`, `/conductor:status`, `/conductor:revert`.
+- **Specialized `conductor` agent**: a dedicated planning/architecture agent installed into the global OpenCode v2 agents directory.
+- **Protocol-driven workflow**: Context → Spec → Plan → Implement, enforced by the packaged prompts.
+- **Execution-time context**: every command injects the project directory, setup state, and the current `conductor/` file tree — recomputed on each execution.
+- **Delegation without extra tooling**: delegated implementation uses OpenCode v2's built-in `subagent` tool and session APIs (no plugin-owned delegate/background tools).
+- **19+ style templates** bundled for many languages (Rust, Go, Zig, Julia, Kotlin, Swift, …).
+- **Zero-config provisioning**: the `conductor` agent is installed on `npm install` and refreshed on first load.
 
 ---
 
 ## 📦 Installation
 
-Add the plugin to your global OpenCode configuration file. OpenCode will automatically fetch and install it from NPM.
+**Requirements:** OpenCode **v2.1.4 or newer**.
+
+### Recommended: `opencode plugin add`
+
+```bash
+opencode plugin add @wuhuizuo/opencode-conductor-plugin
+```
+
+### Or edit the global config
 
 **File:** `~/.config/opencode/opencode.json`
 
 ```json
 {
-  "plugin": [
-    "opencode-conductor-plugin"
-  ]
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["@wuhuizuo/opencode-conductor-plugin"]
 }
 ```
 
-*Note: Please restart OpenCode after the first run to enable the global slash commands.*
+On first load the plugin installs the `conductor` agent to `~/.config/opencode/agents/conductor.md`.
+**Restart OpenCode** after the first load so the agent and slash commands are wired into the session.
 
 ---
 
 ## ⚙️ Configuration
 
-We highly recommend pinning the `@conductor` agent to a "flash" model for optimal performance during planning phases.
+### Agent model
 
-### Standard OpenCode Config
-**File:** `~/.config/opencode/opencode.json`
-```json
-{
-  "agent": {
-    "conductor": {
-      "model": "google/gemini-3-flash"
-    }
-  }
-}
-```
+`conductor` inherits your session model by default. Pinning a fast model for planning is recommended:
 
-### OhMyOpenCode Config
-**File:** `~/.config/opencode/oh-my-opencode.json`
 ```json
 {
   "agents": {
@@ -88,37 +66,115 @@ We highly recommend pinning the `@conductor` agent to a "flash" model for optima
 }
 ```
 
+### Delegation strategy
+
+`conductor:implement` can either implement tasks itself or delegate them through OpenCode v2's built-in `subagent` tool:
+
+```json
+{
+  "plugins": [
+    {
+      "package": "@wuhuizuo/opencode-conductor-plugin",
+      "options": { "delegation": "auto" }
+    }
+  ]
+}
+```
+
+| Value | Behaviour |
+| :--- | :--- |
+| `manual` (default) | The executing agent implements every plan task itself. |
+| `delegate` | Each task is dispatched to a subagent-capable agent via the built-in `subagent` tool. |
+| `auto` | Delegates only when OpenCode v2 exposes a subagent-capable agent; otherwise manual. |
+
+---
+
+## 🛠️ The Conductor Lifecycle
+
+Conductor organizes work into **Tracks** (features or bug fixes). Every track follows three phases:
+
+### 1. Project initialization (`/conductor:setup`)
+
+Run once per project. The agent interviews you to define product vision, tech stack, and workflow rules, then writes the `conductor/` directory (including `conductor/setup_state.json`).
+
+### 2. Track planning (`/conductor:newTrack "…"`)
+
+Describe the task. Conductor asks targeted questions, writes the track specification (`spec.md`), and generates a step-by-step implementation plan (`plan.md`).
+
+### 3. Implementation (`/conductor:implement`)
+
+The agent works through `plan.md`, following the project's workflow rules (e.g. TDD and commit conventions). Use `/conductor:status` for progress and `/conductor:revert` to undo a task, phase, or track.
+
 ---
 
 ## 📋 Commands Reference
 
 | Command | Description |
 | :--- | :--- |
-| `/conductor:setup` | Initialize the `conductor/` directory and project "Constitution". |
-| `/conductor:newTrack "desc"` | Start a new feature/bug Track with spec and plan generation. |
-| `/conductor:implement` | Start implementing the next pending task in the current track. |
-| `/conductor:status` | Get a high-level overview of project progress and active tracks. |
-| `/conductor:revert` | Interactively select a task, phase, or track to undo via Git. |
+| `/conductor:setup` | Initialize the `conductor/` directory and the project constitution. |
+| `/conductor:newTrack "desc"` | Start a feature/bug track with spec and plan generation. |
+| `/conductor:implement` | Implement the next pending task in the current track. |
+| `/conductor:review` | Review completed track work against the plan and guidelines. |
+| `/conductor:status` | High-level overview of project progress and active tracks. |
+| `/conductor:revert` | Interactively undo a task, phase, or track via Git. |
 
 ---
 
-## 🤝 Synergy with OhMyOpenCode
+## 🤝 Delegation in OpenCode v2
 
-If you use the **OhMyOpenCode** suite, `@conductor` acts as your Technical Lead. While **Sisyphus** manages the general conversation and orchestration, he can delegate complex architectural planning and protocol enforcement to the `@conductor` agent. 
-
-Conductor includes built-in "Loop Protection" to ensure it never conflicts with OhMyOpenCode's continuation enforcers during interactive Q&A sessions.
+Delegated work is handed to subagents through the **built-in `subagent` tool** and runs in child sessions that stay inspectable via the session APIs. The plugin deliberately ships **no** `conductor_delegate` / background tools: OpenCode v2 already provides delegation and session management, and duplicating them only adds failure modes.
 
 ---
 
-## 📈 Automated Versioning
+## 🔁 Migrating from the v1 plugin
 
-This project follows **Conventional Commits**. Releases are automated via Semantic Release:
-- `feat:` -> Minor version bump
-- `fix:` -> Patch version bump
-- `BREAKING CHANGE:` -> Major version bump
+The v1 package (`opencode-conductor-plugin`) is **not** compatible with OpenCode v2. Migration steps:
+
+1. Upgrade to OpenCode v2.
+2. In `~/.config/opencode/opencode.json`, replace the v1 key and package:
+   ```json
+   {
+     "plugins": ["@wuhuizuo/opencode-conductor-plugin"]
+   }
+   ```
+3. Remove the legacy v1 artifacts (they are ignored by v2 and can shadow the new agent):
+   ```bash
+   rm -f ~/.config/opencode/agent/conductor.md
+   rm -f ~/.config/opencode/command/conductor*
+   ```
+4. Restart OpenCode. The plugin reports any leftover legacy files in the log.
+
+**Rollback:** reinstall `opencode-conductor-plugin@1.32.0` and run OpenCode v1; the installed agent file is additive and can stay.
+
+---
+
+## 🧑‍💻 Development
+
+```bash
+npm install                   # installs dev deps
+npm run build                 # tsc + copy packaged prompts to dist/
+npm test                      # vitest unit suite
+npm run probe                 # integration probe: local build + real OpenCode v2
+npm run probe -- --tarball    # pack, install and probe the published artifact
+npm run probe -- --broken     # verify the probe rejects a broken entrypoint
+```
+
+The probe builds an isolated project with temporary `HOME`/`XDG` directories, loads the plugin through the real `opencode` binary, and asserts that the six commands register and the agent is provisioned.
+
+---
+
+## 📈 Versioning
+
+Conventional Commits, automated with Semantic Release:
+
+- `feat:` → minor bump
+- `fix:` → patch bump
+- `BREAKING CHANGE:` → major bump
+
+This fork starts the OpenCode v2 line at `2.0.0`.
 
 ---
 
 ## 📜 License
 
-Distributed under the [Apache License 2.0](LICENSE).
+Apache License 2.0 — see [LICENSE](LICENSE). Original work by Derek Barrera.
