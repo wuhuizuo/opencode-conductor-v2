@@ -1,3 +1,39 @@
+# [2.0.0](https://github.com/wuhuizuo/opencode-conductor-v2/compare/v1.32.0...v2.0.0) (2026-10-25)
+
+
+### Bug Fixes
+
+* **build:** keep test files out of the published dist ([042cba3](https://github.com/wuhuizuo/opencode-conductor-v2/commit/042cba39465fbd06c9f0cc31bd8cbac26ae47e30))
+
+
+### Features
+
+* **plugin:** port conductor to the OpenCode v2 plugin API ([f8ccb4d](https://github.com/wuhuizuo/opencode-conductor-v2/commit/f8ccb4d49c2548ed04faca36b81b75ebf9111449))
+
+
+### BREAKING CHANGES
+
+* **plugin:** the v1 plugin API (`@opencode-ai/plugin`) is replaced by
+`@opencode/plugin` v2 and the package is renamed to
+`@wuhuizuo/opencode-conductor-plugin@2.0.0`, requiring OpenCode >= 2.1.4.
+
+- entrypoint: `Plugin.define({ id: "conductor", setup })`, host modules stay
+  external, registration disposed through the returned cleanup
+- commands: six `/conductor:*` commands registered via
+  `ctx.command.transform`; each dispatches its packaged JSON template with
+  execution-time context (directory, setup state, conductor file tree)
+- agent: `conductor` provisioned into `~/.config/opencode/agents/conductor.md`
+  by postinstall and first load (idempotent, upgrade-safe, legacy v1 artifact
+  detection without deletion)
+- delegation: remove custom delegate/background tools and v1 SDK session calls;
+  `delegation` plugin option (`manual|delegate|auto`) selects guidance that
+  uses the built-in `subagent` tool + session APIs
+- cleanup: drop v1 tool/config modules, legacy converter and stale prompts
+- tests: 41 vitest cases + integration probe against real `opencode` v2 for
+  local dist, packed tarball and a deliberately broken entrypoint
+- docs/release: README/INSTALL rewritten for v2, publish workflow runs
+  typecheck+tests, release assets built from dist
+
 # [1.32.0](https://github.com/derekbar90/opencode-conductor/compare/v1.31.0...v1.32.0) (2026-03-02)
 
 
