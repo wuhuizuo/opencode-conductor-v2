@@ -50,7 +50,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "build": "rm -rf dist && tsc && npm run copy-assets",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && npm run copy-assets",
     "copy-assets": "mkdir -p dist/prompts && cp -r src/prompts/* dist/prompts/",
     "probe": "node scripts/integration-probe.mjs",
     "postinstall": "node scripts/postinstall.cjs",
