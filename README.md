@@ -163,13 +163,21 @@ The probe builds an isolated project with temporary `HOME`/`XDG` directories, lo
 
 ---
 
-## 📈 Versioning
+## 🚀 Releasing
 
-Conventional Commits, automated with Semantic Release:
+Releases are **tag-driven**; CI never bumps versions.
 
-- `feat:` → minor bump
-- `fix:` → patch bump
-- `BREAKING CHANGE:` → major bump
+1. Bump `version` in `package.json` and add the matching `# [x.y.z]` section to `CHANGELOG.md` (release notes reuse it).
+2. Commit, then create and push the tag:
+   ```bash
+   git tag v2.0.1
+   git push origin v2.0.1
+   ```
+3. `.github/workflows/publish.yml` runs on the tag: typecheck + tests + build, publishes to npm with provenance via **OIDC trusted publishing**, and creates/updates the GitHub release with npm install instructions plus a `conductor-v2-release.tar.gz` asset.
+
+Prerequisite: configure the npm package's **Trusted Publisher** (npmjs.com → package settings → Trusted Publishing → GitHub Actions, repo `wuhuizuo/opencode-conductor-v2`, workflow `publish.yml`). No `NPM_TOKEN` secret is used or stored.
+
+Re-running a release: `gh workflow run publish.yml -f tag_name=v2.0.1` — already published versions are skipped and the release is updated in place.
 
 This fork starts the OpenCode v2 line at `2.0.0`.
 

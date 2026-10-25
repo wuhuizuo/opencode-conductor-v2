@@ -58,39 +58,8 @@
   },
   "devDependencies": {
     "@opencode/plugin": "2.1.4",
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/commit-analyzer": "^13.0.0",
-    "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^11.0.1",
-    "@semantic-release/npm": "^12.0.1",
-    "@semantic-release/release-notes-generator": "^14.0.0",
     "@types/node": "^20.0.0",
-    "semantic-release": "^24.2.1",
     "typescript": "^5.0.0",
     "vitest": "^4.0.16"
-  },
-  "release": {
-    "branches": [
-      "main"
-    ],
-    "repositoryUrl": "https://github.com/wuhuizuo/opencode-conductor-v2",
-    "plugins": [
-      "@semantic-release/commit-analyzer",
-      "@semantic-release/release-notes-generator",
-      "@semantic-release/changelog",
-      "@semantic-release/npm",
-      [
-        "@semantic-release/git",
-        {
-          "assets": [
-            "package.json",
-            "package-lock.json",
-            "CHANGELOG.md"
-          ],
-          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-        }
-      ],
-      "@semantic-release/github"
-    ]
   }
 }

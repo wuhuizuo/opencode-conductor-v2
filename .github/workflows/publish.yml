@@ -1,33 +1,66 @@
-name: Publish to NPM
+name: Release
 
+# Tag-driven release: pushing a `v*` tag publishes the npm package and creates a
+# GitHub release (with install instructions). Versions are never bumped by CI —
+# bump `package.json` before tagging; the workflow refuses mismatched tags.
 on:
   push:
-    branches:
-      - main
+    tags:
+      - "v*"
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Existing tag to (re)publish, for example v2.0.1"
+        required: true
+        type: string
+
+permissions:
+  # Release creation/update and asset upload.
+  contents: write
+  # npm trusted publishing (OIDC) + provenance attestations.
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      id-token: write
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag_name || github.ref }}
+
+      - name: Resolve tag and version
+        run: |
+          TAG="${{ inputs.tag_name || github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Releasing $VERSION from tag $TAG"
+
+      - name: Verify tag matches package.json
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$PKG_VERSION" != "$VERSION" ]; then
+            echo "::error::tag ${TAG} does not match package.json version ${PKG_VERSION}; bump the version before tagging"
+            exit 1
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Upgrade npm for trusted publishing
+        run: npm install --global npm@latest
+
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Typecheck
         run: npm run typecheck
@@ -38,10 +71,60 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Semantic Release
+      - name: Publish to npm
         run: |
-          echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc
-          npx semantic-release
+          if npm view "@wuhuizuo/opencode-conductor-plugin@${VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::@wuhuizuo/opencode-conductor-plugin@${VERSION} is already published; skipping npm publish"
+          else
+            # Trusted publishing (OIDC): no long-lived token is used or stored.
+            npm publish --provenance --access public
+          fi
+
+      - name: Package release assets
+        run: |
+          tar -czf conductor-v2-release.tar.gz \
+            --exclude='node_modules' \
+            --exclude='.git' \
+            dist scripts/postinstall.cjs package.json README.md INSTALL.md LICENSE CHANGELOG.md
+
+      - name: Build release notes
+        run: |
+          {
+            echo "## Install"
+            echo
+            echo '```bash'
+            echo "opencode plugin add @wuhuizuo/opencode-conductor-plugin@${VERSION}"
+            echo '```'
+            echo
+            echo 'Or add it to `~/.config/opencode/opencode.json`:'
+            echo
+            echo '```json'
+            echo '{ "plugins": ["@wuhuizuo/opencode-conductor-plugin"] }'
+            echo '```'
+            echo
+            echo "- npm: https://www.npmjs.com/package/@wuhuizuo/opencode-conductor-plugin/v/${VERSION}"
+            echo "- Requires OpenCode v2.1.4 or newer"
+            echo
+            if [ -f CHANGELOG.md ]; then
+              SECTION="$(awk -v v="[${VERSION}]" 'index($0,"# " v)==1 {found=1} found && /^# \[/ && index($0,"# " v)!=1 {exit} found' CHANGELOG.md)"
+              if [ -n "$SECTION" ]; then
+                echo "## Changes"
+                echo
+                printf '%s\n' "$SECTION"
+              fi
+            fi
+          } > release-notes.md
+
+      - name: Create or update GitHub release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$VERSION" --notes-file release-notes.md
+            gh release upload "$TAG" conductor-v2-release.tar.gz --clobber
+          else
+            gh release create "$TAG" conductor-v2-release.tar.gz \
+              --verify-tag \
+              --title "$VERSION" \
+              --notes-file release-notes.md
+          fi
