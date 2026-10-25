@@ -58,7 +58,14 @@
   },
   "devDependencies": {
     "@opencode/plugin": "2.1.4",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^11.0.1",
+    "@semantic-release/npm": "^12.0.1",
+    "@semantic-release/release-notes-generator": "^14.0.0",
     "@types/node": "^20.0.0",
+    "semantic-release": "^24.2.1",
     "typescript": "^5.0.0",
     "vitest": "^4.0.16"
   },

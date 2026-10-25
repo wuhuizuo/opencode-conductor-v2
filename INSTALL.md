@@ -119,7 +119,7 @@ where `.opencode/plugins/conductor/index.ts` re-exports the built entrypoint:
 export { default } from "../../../dist/index.js";
 ```
 
-This repository ships that directory as `.opencode/plugins/conductor`, so the config above only needs the absolute path to the checkout. Run the automated equivalent with `npm run probe`.
+Run the automated equivalent with `npm run probe`.
 
 ---
 
