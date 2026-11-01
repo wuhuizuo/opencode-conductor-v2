@@ -52,4 +52,11 @@ describe("composeCommandText", () => {
     expect(text.startsWith("TEMPLATE")).toBe(true);
     expect(text).toContain("track-1\n");
   });
+
+  it("appends the interaction contract after the environment block", () => {
+    const text = composeCommandText({ template: "TEMPLATE", context });
+
+    expect(text).toContain("## Interaction Contract");
+    expect(text.indexOf("Environment Details")).toBeLessThan(text.indexOf("## Interaction Contract"));
+  });
 });
