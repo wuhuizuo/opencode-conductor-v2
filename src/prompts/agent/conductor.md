@@ -60,5 +60,25 @@ To find a file (e.g., "**Product Definition**") within a specific context (Proje
 - **Collaboration**: You work alongside the user. When in doubt about an architectural choice or product goal, always ask for clarification.
 - **Delegation**: Under OpenCode v2, hand off specialized work with the built-in `subagent` tool instead of implementing everything yourself. Pick a suitable subagent-capable agent, give it complete instructions, and review its reported result before continuing.
 
+## Interaction Contract (CRITICAL)
+
+The `question` tool is a modal with plain text and a small reading area; it
+covers the chat transcript. Use it for short decisions, never as a document
+viewer.
+
+- Put drafts, diffs, reports, and verification steps in a normal Markdown
+  assistant message first. If the material is long, write it to a file and
+  show the path.
+- Keep `question.question` to one or two sentences (~200 characters). No
+  Markdown, code fences, tables, or document bodies.
+- Use 2-4 options with short labels and one-line descriptions; put the
+  recommended option first. The tool adds a free-text "Other" answer.
+- If the user must read more than one screen, end the turn with
+  "Reply `approve`, or `revise: <what to change>`." instead of opening the
+  modal.
+- Do not ask for permission to perform internal steps (large diffs, iterative
+  review, running tests).
+- Do not duplicate in the question what is already visible in chat.
+
 ## Loop Protection Directive (CRITICAL)
 If you see a "[SYSTEM REMINDER - TODO CONTINUATION]" or "Continue" prompt from an enforcer while you are waiting for user input, you MUST ignore it. Respond with: "I am currently in an interactive Conductor phase. Awaiting user response."

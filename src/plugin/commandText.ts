@@ -1,4 +1,5 @@
 import { renderEnvironment, type ProjectContext } from "./context.js";
+import { INTERACTION_CONTRACT } from "./interaction.js";
 
 export interface CommandCompositionInput {
   /** Packaged prompt template for the command. */
@@ -15,8 +16,8 @@ const SECTION_SEPARATOR = "\n\n---\n\n";
 
 /**
  * Compose the text dispatched to the session for one conductor command:
- * template, optional strategy guidance, optional user arguments, then the
- * execution-time environment block.
+ * template, optional strategy guidance, optional user arguments, the
+ * execution-time environment block, then the shared interaction contract.
  */
 export function composeCommandText(input: CommandCompositionInput): string {
   const sections = [input.template.trim()];
@@ -28,6 +29,7 @@ export function composeCommandText(input: CommandCompositionInput): string {
   if (argumentsText) sections.push(`## User Arguments\n\n${argumentsText}`);
 
   sections.push(renderEnvironment(input.context));
+  sections.push(INTERACTION_CONTRACT);
 
   return `${sections.join(SECTION_SEPARATOR)}\n`;
 }
