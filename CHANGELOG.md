@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/wuhuizuo/opencode-conductor-v2/compare/v2.0.0...v2.0.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **prompts:** keep long content out of the question modal ([e2bf223](https://github.com/wuhuizuo/opencode-conductor-v2/commit/e2bf22316afa8f22a1069e8729681ea58866a5e0))
+
 # [2.0.0](https://github.com/wuhuizuo/opencode-conductor-v2/compare/v1.32.0...v2.0.0) (2026-10-25)
 
 
