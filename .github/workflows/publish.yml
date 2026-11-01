@@ -54,7 +54,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Upgrade npm for trusted publishing
         run: npm install --global npm@latest
@@ -73,6 +72,7 @@ jobs:
 
       - name: Publish to npm
         run: |
+          unset NODE_AUTH_TOKEN
           if npm view "@wuhuizuo/opencode-conductor-plugin@${VERSION}" version >/dev/null 2>&1; then
             echo "::notice::@wuhuizuo/opencode-conductor-plugin@${VERSION} is already published; skipping npm publish"
           else
